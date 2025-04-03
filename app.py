@@ -1898,7 +1898,7 @@ def form_add_data_cham_cong():
 # ------------------ CHAM CONG ------------------------
 #
 
-#
+# --Deivy--
 # ------------------ PHONG BAN ------------------------
 #
 
@@ -1930,6 +1930,7 @@ def view_all_phong_ban():
         for elm in raw_data[i]:
             tmp_lst.append(elm)
         tmp_lst.append(count_data[i][0])
+        # tmp_lst.append(count_data[i][0] if i < len(count_data) else 0)
         phongban.append(tmp_lst)
     
     return render_template(session['role'] +"phongban/view_all_phong_ban.html",
@@ -1960,6 +1961,8 @@ def view_phong_ban(maPB):
                 ORDER BY MaPB ASC
                 """, (maPB, ))
     count_data = cur.fetchall()[0]
+    # count_data = cur.fetchone()
+    # phongban.append(count_data[0] if count_data else 0)
     
     cur.execute("""SELECT nv.MaNhanVien, nv.TenNV, img.PathToImage, nv.DiaChi, DATE_FORMAT(nv.NgaySinh,"%d-%m-%Y"), nv.GioiTinh, nv.DienThoai, cv.TenCV
                 FROM qlnv_nhanvien nv
@@ -1980,6 +1983,9 @@ def view_phong_ban(maPB):
                 WHERE nv.MaNhanVien = %s
                 """, (phongban[4], ))
     truongphong = cur.fetchall()[0]
+    # truongphong=cur.fetchone()
+    # if not truongphong:
+    #     truongphong = ("chưa có", "trống")
     
     cur.execute("""
                 SELECT COUNT(*)
