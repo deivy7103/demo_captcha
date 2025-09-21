@@ -1,0 +1,126 @@
+{# templates/general/register.html #}
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <title>Đăng ký - {{ congty[1] if congty else 'Hệ thống' }}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='doc/css/main.css') }}"
+    />
+    <script src="{{url_for('static', filename='js/displaytime/displaytime.js')}}"></script>
+    <link
+      rel="shortcut icon"
+      type="image/x-icon"
+      href="{{ url_for('static', filename=congty[3])}}"
+    />
+    <style>
+      body {
+        background: #f4f6f9;
+        height: 100vh;
+        margin: 0;
+      }
+      .register-wrapper {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100%;
+      }
+      .register-box {
+        width: 100%;
+        max-width: 600px;
+      }
+      .tile {
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+        border-radius: 8px;
+      }
+    </style>
+  </head>
+  <body onload="time()" class="app sidebar-mini rtl">
+    <main class="app-content">
+      <div class="app-title">
+        <ul class="app-breadcrumb breadcrumb">
+          <li class="breadcrumb-item">
+            <a href="{{ url_for('login') }}"><b>Đăng nhập</b></a>
+          </li>
+          <li class="breadcrumb-item active"><a href="#">Đăng ký</a></li>
+        </ul>
+        <div id="clock"></div>
+      </div>
+
+      <div class="register-wrapper">
+        <div class="register-box">
+          <div class="tile">
+            <h3 class="tile-title text-center">Đăng ký tài khoản</h3>
+            <div class="tile-body">
+              {% if error %}
+              <div
+                class="alert alert-danger"
+                style="
+                  text-align: left;
+                  font-size: 12px;
+                  background-color: red;
+                  color: white;
+                "
+              >
+                <span
+                  class="closebtn"
+                  onclick="this.parentElement.style.display='none';"
+                  >&times;</span
+                >
+                <strong>{{ error }}</strong>
+              </div>
+              {% endif %}
+
+              <form
+                class="row"
+                method="post"
+                action="{{ url_for('register') }}"
+                enctype="multipart/form-data"
+              >
+                <div class="form-group col-md-12">
+                  <label class="control-label">Tên đăng nhập</label>
+                  <input
+                    class="form-control"
+                    type="text"
+                    name="username"
+                    required
+                    value="{{ form.username if form else '' }}"
+                  />
+                </div>
+
+                <div class="form-group col-md-12">
+                  <label class="control-label">Mật khẩu</label>
+                  <input
+                    class="form-control"
+                    type="password"
+                    name="password"
+                    required
+                  />
+                </div>
+
+                <div class="form-group col-md-12">
+                  <label class="control-label">Nhập lại mật khẩu</label>
+                  <input
+                    class="form-control"
+                    type="password"
+                    name="confirm_password"
+                    required
+                  />
+                </div>
+
+                <div class="form-group col-md-12 text-center">
+                  <input class="btn btn-save" type="submit" value="Lưu lại" />
+                  <a class="btn btn-cancel" href="{{ url_for('login') }}"
+                    >Hủy bỏ</a
+                  >
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </body>
+</html>

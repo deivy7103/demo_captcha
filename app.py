@@ -18,6 +18,7 @@ import numpy as np
 import functools
 import pdfkit
 import re
+import requests
 
 app = Flask(__name__)
 app.secret_key = 'la nam'
@@ -134,6 +135,138 @@ def login():
         return redirect(url_for("home"))
     return render_template('general/login.html',
                            congty = session['congty'])
+
+#thêm chức năng đang ký tài khoản cho người dùng thường nha (kh phân quyền)
+@app.route("/register", methods=['GET', 'POST'])
+def register():
+    if 'username' in session:
+        return redirect(url_for("home"))
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT * FROM qlnv_congty")
+    congty = cur.fetchall()[0] if cur.rowcount > 0 else None
+    if 'congty' not in session and congty:
+        session['congty'] = congty
+
+    cur.execute("""
+        SELECT MaNhanVien, TenNV
+        FROM qlnv_nhanvien
+        WHERE MaNhanVien NOT IN (
+            SELECT DISTINCT us.MaNhanVien
+            FROM qlnv_user us
+        )
+    """)
+    nhanvien = cur.fetchall()
+
+    type_account = {
+        'Admin': 1,
+        'Trưởng Phòng': 2,
+        'Nhân Viên': 3
+    }
+
+    if request.method == 'POST':
+        details = request.form
+        username = details.get('username', '').strip()
+        password = details.get('password', '')
+        confirm = details.get('confirm_password', '')
+        manv = details.get('manv', '').strip() 
+        loai_tk = details.get('type', 'Nhân Viên') 
+
+        if not username or not password:
+            return render_template('general/register.html',
+                                   congty=session.get('congty'),
+                                   error="Vui lòng nhập đầy đủ username và password",
+                                   nhanvien=nhanvien,
+                                   type_account=list(type_account.keys()),
+                                   form=details)
+
+        if password != confirm:
+            return render_template('general/register.html',
+                                   congty=session.get('congty'),
+                                   error="Mật khẩu nhập lại không khớp",
+                                   nhanvien=nhanvien,
+                                   type_account=list(type_account.keys()),
+                                   form=details)
+        cur.execute("SELECT Id_user FROM qlnv_user WHERE username = %s", (username,))
+        if cur.fetchone():
+            return render_template('general/register.html',
+                                   congty=session.get('congty'),
+                                   error="Username đã tồn tại",
+                                   nhanvien=nhanvien,
+                                   type_account=list(type_account.keys()),
+                                   form=details)
+
+        password_hashed = hashlib.md5(password.encode()).hexdigest()
+
+        try:
+            if not manv:
+                cur.execute("SELECT MaNhanVien FROM qlnv_nhanvien")
+                rows = cur.fetchall()
+                max_num = 0
+                chosen_prefix = "MNV"
+                chosen_width = 2
+
+                for r in rows:
+                    code = r[0]
+                    if not code:
+                        continue
+                    m = re.search(r'(\d+)$', str(code))
+                    if m:
+                        num = int(m.group(1))
+                        if num > max_num:
+                            max_num = num
+                            chosen_width = max(chosen_width, len(m.group(1)))
+                            chosen_prefix = code[:m.start(1)]
+
+                if max_num == 0:
+                    manv = f"{chosen_prefix}01" if chosen_prefix else "MNV01"
+                else:
+                    manv = f"{chosen_prefix}{(max_num + 1):0{chosen_width}d}"
+                cur.execute("""
+                    INSERT INTO qlnv_nhanvien (MaNhanVien, TenNV)
+                    VALUES (%s, %s)
+                """, (manv, username))
+                mysql.connection.commit()
+            else:
+                cur.execute("SELECT MaNhanVien FROM qlnv_nhanvien WHERE MaNhanVien = %s", (manv,))
+                if not cur.fetchone():
+                    return render_template('general/register.html',
+                                           congty=session.get('congty'),
+                                           error="Mã nhân viên không tồn tại",
+                                           nhanvien=nhanvien,
+                                           type_account=list(type_account.keys()),
+                                           form=details)
+            cur.execute("""
+                INSERT INTO qlnv_user (Id_user, username, password, tennguoidung, MaNhanVien, LastLogin, register)
+                VALUES (NULL, %s, %s, %s, %s, NULL, current_timestamp())
+            """, (username, password_hashed, username, manv))
+            mysql.connection.commit()
+            cur.execute("SELECT Id_user FROM qlnv_user WHERE username = %s", (username,))
+            acc = cur.fetchone()
+            if acc:
+                acc_id = acc[0]
+                role_id = type_account.get(loai_tk, 3)
+                cur.execute("INSERT INTO qlnv_phanquyenuser(id_user, role_id) VALUES (%s, %s)", (acc_id, role_id))
+                mysql.connection.commit()
+
+            cur.close()
+            return redirect(url_for('login'))
+
+        except Exception as e:
+            try:
+                mysql.connection.rollback()
+            except:
+                pass
+            cur.close()
+            return render_template('general/register.html',
+                                   congty=session.get('congty'),
+                                   error=f"Lỗi khi lưu dữ liệu: {str(e)}",
+                                   nhanvien=nhanvien,
+                                   type_account=list(type_account.keys()),
+                                   form=details)
+    return render_template('general/register.html',
+                           congty=session.get('congty'),
+                           nhanvien=nhanvien,
+                           type_account=list(type_account.keys()))
 
 @app.route("/home")
 def home():
@@ -1929,8 +2062,8 @@ def view_all_phong_ban():
         tmp_lst = []
         for elm in raw_data[i]:
             tmp_lst.append(elm)
-        tmp_lst.append(count_data[i][0])
-        # tmp_lst.append(count_data[i][0] if i < len(count_data) else 0)
+        tmp_lst.append(count_data[i][0]) 
+        # tmp_lst.append(count_data[i][0] if i < len(count_data) else 0) //sửa lỗi khi một phòng ban không có nhân viên
         phongban.append(tmp_lst)
     
     return render_template(session['role'] +"phongban/view_all_phong_ban.html",
@@ -1982,10 +2115,10 @@ def view_phong_ban(maPB):
                 FROM qlnv_nhanvien nv
                 WHERE nv.MaNhanVien = %s
                 """, (phongban[4], ))
-    truongphong = cur.fetchall()[0]
-    # truongphong=cur.fetchone()
-    # if not truongphong:
-    #     truongphong = ("chưa có", "trống")
+    # truongphong = cur.fetchall()[0]
+    truongphong=cur.fetchone() 
+    if not truongphong:
+        truongphong = ("chưa có", "trống")
     
     cur.execute("""
                 SELECT COUNT(*)
@@ -2651,13 +2784,13 @@ def form_tao_tk():
                         FROM qlnv_phongban
                         WHERE MaTruongPhong = %s
                         """, (MNV,))
-            if (len(cur.fetchall()) == 0):
-                return render_template(session['role'] +'caidat/form_tao_tk.html', 
-                                type_account = list(type_account.keys()),
-                           nhanvien = nhanvien,
-                            my_err = "Nhân viên không là trưởng phòng",
-                           congty = session['congty'],
-                           my_user = session['username'])
+            # if (len(cur.fetchall()) == 0):
+            #     return render_template(session['role'] +'caidat/form_tao_tk.html', 
+            #                     type_account = list(type_account.keys()),
+            #                nhanvien = nhanvien,
+            #                 my_err = "Nhân viên không là trưởng phòng",
+            #                congty = session['congty'],
+            #                my_user = session['username'])
         
         cur.execute("""
                     INSERT INTO qlnv_user(Id_user, username, password, tennguoidung, MaNhanVien, LastLogin, register)
@@ -2731,8 +2864,21 @@ def form_view_tk():
                            congty = session['congty'],
                            my_user = session['username'])
 
-@login_required
-@app.route("/form_chinh_sua_mk/<string:id>", methods = ['GET','POST'])
+#BE đổi mk
+HCAPTCHA_SECRET = "ES_a8291e5cc4d8435ea3d34caaabab07ea"
+
+def verify_hcaptcha(token):
+    url = "https://hcaptcha.com/siteverify"
+    data = {
+        "secret": HCAPTCHA_SECRET,
+        "response": token
+    }
+    r = requests.post(url, data=data)
+    return r.json()
+
+
+@login_required 
+@app.route("/form_chinh_sua_mk/<string:id>", methods=['GET','POST'])
 def form_chinh_sua_mk(id):
     cur = mysql.connection.cursor()
     if session['role_id'] != 1:
@@ -2755,6 +2901,20 @@ def form_chinh_sua_mk(id):
     this_user = this_user[0][0]
     
     if request.method == 'POST':
+        # --- Check hCaptcha trước khi xử lý ---
+        hcaptcha_token = request.form.get("h-captcha-response")
+        result = verify_hcaptcha(hcaptcha_token)
+
+        if not result.get("success"):
+            return render_template(session['role'] +'caidat/form_chinh_sua_mk.html',
+                                   role=session['role_id'],
+                                   id=id,
+                                   this_user=this_user,
+                                   congty=session['congty'],
+                                   my_user=session['username'],
+                                   my_err="Xác thực hCaptcha thất bại, vui lòng thử lại")
+        
+        # --- Nếu captcha ok thì tiếp tục ---
         details = request.form
         old_password = ""
         if session['role_id'] != 1:
@@ -2772,21 +2932,21 @@ def form_chinh_sua_mk(id):
             
             if old_password != old_pass:
                 return render_template('caidat/form_chinh_sua_mk.html', 
-                                id = session['username'][0],
-                                role = session['role_id'],
-                                my_err = "Mật khẩu cũ không đúng",
-                            this_user = this_user,
-                            congty = session['congty'],
-                            my_user = session['username'])
+                                id=session['username'][0],
+                                role=session['role_id'],
+                                my_err="Mật khẩu cũ không đúng",
+                                this_user=this_user,
+                                congty=session['congty'],
+                                my_user=session['username'])
         
         if new_password != new_password_repeat:
             return render_template(session['role'] +'caidat/form_chinh_sua_mk.html', 
-                            id = id,
-                            role = session['role_id'],
-                            my_err = "Nhập lại mật khẩu mới không đúng",
-                           this_user = this_user,
-                           congty = session['congty'],
-                           my_user = session['username'])
+                            id=id,
+                            role=session['role_id'],
+                            my_err="Nhập lại mật khẩu mới không đúng",
+                            this_user=this_user,
+                            congty=session['congty'],
+                            my_user=session['username'])
         
         cur.execute("""
                     UPDATE qlnv_user
@@ -2797,12 +2957,13 @@ def form_chinh_sua_mk(id):
         if session['role_id'] != 1:
             return redirect(url_for('cai_dat'))
         return redirect(url_for('form_view_tk'))
+
     return render_template(session['role'] +'caidat/form_chinh_sua_mk.html', 
-                           role = session['role_id'],
-                           id = id,
-                           this_user = this_user,
-                           congty = session['congty'],
-                           my_user = session['username'])
+                           role=session['role_id'],
+                           id=id,
+                           this_user=this_user,
+                           congty=session['congty'],
+                           my_user=session['username'])
 
 @login_required
 @app.route("/form_view_cong_ty/<string:canEdit>", methods = ['GET','POST'])
