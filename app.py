@@ -19,6 +19,8 @@ import functools
 import pdfkit
 import re
 import requests
+from PIL import Image, ImageDraw, ImageFont, ImageFilter
+import secrets, string
 
 app = Flask(__name__)
 app.secret_key = 'la nam'
@@ -36,9 +38,60 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['UPLOAD_FOLDER_IMG'] = UPLOAD_FOLDER_IMG
 app.config['SAVE_FOLDER_PDF'] = SAVE_FOLDER_PDF
 app.config['SAVE_FOLDER_EXCEL'] = SAVE_FOLDER_EXCEL
-
+CAPTCHA_LEN = 5
+CAPTCHA_EXPIRE_SECS = 180
 mysql = MySQL(app)
+def generate_captcha_text(length=CAPTCHA_LEN):
+    # Loại bỏ ký tự dễ nhầm: 0/O, 1/I/L
+    alphabet = ''.join(ch for ch in (string.ascii_uppercase + string.digits)
+                       if ch not in {'0', 'O', '1', 'I', 'L'})
+    return ''.join(secrets.choice(alphabet) for _ in range(length))
 
+def make_captcha_image(text):
+    # Kích thước/đồ họa cơ bản
+    width, height = 160, 56
+    img = Image.new("RGB", (width, height), (245, 247, 250))
+    draw = ImageDraw.Draw(img)
+
+    # Font: nếu không có file .ttf, fallback default
+    try:
+        # Nếu sau này bạn thêm font .ttf: đặt ở static/fonts/Roboto-Bold.ttf
+        font = ImageFont.truetype("static/fonts/Roboto-Bold.ttf", 34)
+    except Exception:
+        font = ImageFont.load_default()
+
+    # Vẽ một vài đường nhiễu
+    for _ in range(3):
+        x1 = secrets.randbelow(width)
+        y1 = secrets.randbelow(height)
+        x2 = secrets.randbelow(width)
+        y2 = secrets.randbelow(height)
+        draw.line([(x1, y1), (x2, y2)], fill=(180, 185, 190), width=2)
+
+    # Vẽ từng ký tự với lệch vị trí nhẹ
+    padding_x = 14
+    for i, ch in enumerate(text):
+        # jitter vị trí
+        off_x = padding_x + i * 26 + secrets.randbelow(6) - 3
+        off_y = 10 + secrets.randbelow(8) - 4
+        draw.text((off_x, off_y), ch, font=font, fill=(40, 40, 40))
+
+    # Thêm chấm nhiễu
+    for _ in range(150):
+        x = secrets.randbelow(width)
+        y = secrets.randbelow(height)
+        img.putpixel((x, y), (secrets.randbelow(120) + 100,
+                              secrets.randbelow(120) + 100,
+                              secrets.randbelow(120) + 100))
+
+    # Filter nhẹ để phá OCR
+    img = img.filter(ImageFilter.EDGE_ENHANCE_MORE)
+
+    # Xuất PNG vào buffer
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    buf.seek(0)
+    return buf
 def login_required(func): # need for some router
     @functools.wraps(func)
     def secure_function(*args, **kwargs):
@@ -70,6 +123,17 @@ def login():
     
     if request.method == 'POST':
         details = request.form
+        captcha_input = details.get('captcha', '').strip()
+        captcha_true = session.get('captcha_text')
+        captcha_time = session.get('captcha_time')
+        now_ts = datetime.datetime.utcnow().timestamp()
+
+        # Hết hạn hoặc sai → báo lỗi + render lại
+        if (not captcha_true) or (not captcha_time) or (now_ts - float(captcha_time) > CAPTCHA_EXPIRE_SECS) \
+           or (captcha_input.upper() != str(captcha_true).upper()):
+            return render_template('general/login.html',
+                                   congty=session['congty'],
+                                   captcha_err='True')
         user_name = details['username'].strip()
         password = hashlib.md5(details['current-password'].encode()).hexdigest()
         
@@ -132,10 +196,26 @@ def login():
         session['role_id'] = role_id
         
         cur.close()
+        session.pop('captcha_text', None)
+        session.pop('captcha_time', None)
         return redirect(url_for("home"))
     return render_template('general/login.html',
                            congty = session['congty'])
+@app.route("/captcha.png")
+def captcha_png():
+    # Sinh chuỗi + lưu đáp án & timestamp vào session
+    text = generate_captcha_text()
+    session['captcha_text'] = text
+    session['captcha_time'] = datetime.datetime.utcnow().timestamp()
 
+    # Tạo ảnh và trả về
+    img_buf = make_captcha_image(text)
+    resp = Response(img_buf.getvalue(), mimetype="image/png")
+    # No-cache để luôn hiện ảnh mới
+    resp.headers["Cache-Control"] = "no-store, must-revalidate"
+    resp.headers["Pragma"] = "no-cache"
+    resp.headers["Expires"] = "0"
+    return resp
 #thêm chức năng đang ký tài khoản cho người dùng thường nha (kh phân quyền)
 @app.route("/register", methods=['GET', 'POST'])
 def register():

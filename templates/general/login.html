@@ -139,6 +139,46 @@
                 <i class="bx bx-key"></i>
               </span>
             </div>
+            <!--=====CAPTCHA======-->
+            <div class="wrap-input100 validate-input" style="display:flex;align-items:center;gap:12px;">
+              <img
+                src="{{ url_for('captcha_png') }}?r={{ range(1,10)|random }}"
+                id="captchaImg"
+                alt="CAPTCHA"
+                style="height:56px;border-radius:6px;border:1px solid #ddd;padding:4px;cursor:pointer"
+                title="Bấm để đổi mã mới"
+                onclick="document.getElementById('captchaImg').src='{{ url_for('captcha_png') }}?r='+Date.now();"
+              />
+              <button type="button" class="btn btn-light" id="refreshCaptcha" title="Tải mã mới" style="height:42px;">
+                <i class="fas fa-sync"></i>
+              </button>
+            </div>
+
+            <!--=====CAPTCHA INPUT======-->
+            <div class="wrap-input100 validate-input">
+              <input
+               class="input100"
+               type="text"
+               name="captcha"
+               id="captcha-input"
+               placeholder="Nhập mã xác thực"
+               autocomplete="off"
+               maxlength="5"
+               pattern="[A-Za-z0-9]{5}"
+               inputmode="latin"
+               aria-label="Mã xác thực"
+              />
+              <span class="focus-input100"></span>
+              <span class="symbol-input100">
+              <i class="bx bx-shield"></i>
+              </span>
+            </div>
+
+            {% if captcha_err == 'True' %}
+            <div class="alert alert-danger" style="text-align:left;font-size:15px;margin-top:8px">
+              <strong>Mã xác thực không đúng hoặc đã hết hạn!</strong> Vui lòng thử lại.
+            </div>
+            {% endif %}
 
             <!--=====ĐĂNG NHẬP======-->
             <div class="container-login100-form-btn">
@@ -163,6 +203,17 @@
             >
               <p><strong>© 2025 nhóm 7 PTIT - Quản lý nhân sự.</strong></p>
             </footer>
+            <script>
+              (function () {
+                var btn = document.getElementById('refreshCaptcha');
+                if (btn) {
+                  btn.addEventListener('click', function () { 
+                  var img = document.getElementById('captchaImg');
+                  img.src = '{{ url_for("captcha_png") }}?r=' + Date.now();
+                  });
+                }
+              })();
+            </script>
           </form>
         </div>
       </div>
