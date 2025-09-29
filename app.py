@@ -2974,10 +2974,8 @@ def form_chinh_sua_mk(id):
                     WHERE Id_user = %s
                     """, (id, ))
     this_user = cur.fetchall()
-    
     if (len(this_user) == 0):
         abort(404)
-    
     this_user = this_user[0][0]
     
     if request.method == 'POST':
@@ -3037,7 +3035,6 @@ def form_chinh_sua_mk(id):
         if session['role_id'] != 1:
             return redirect(url_for('cai_dat'))
         return redirect(url_for('form_view_tk'))
-
     return render_template(session['role'] +'caidat/form_chinh_sua_mk.html', 
                            role=session['role_id'],
                            id=id,
