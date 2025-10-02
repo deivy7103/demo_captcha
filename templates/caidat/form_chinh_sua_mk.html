@@ -205,6 +205,9 @@
                   <div
                     class="h-captcha"
                     data-sitekey="73e4f2e4-1e6c-4cda-ac4e-8b86572eccf8"
+                    data-size="normal"
+                    data-theme="light"
+                    data-callback="onHcaptchaSuccess"
                   ></div>
                 </div>
                 <div class="form-group col-md-4">
@@ -226,6 +229,11 @@
         </div>
       </div>
     </main>
-    <script src="https://js.hcaptcha.com/1/api.js" async defer></script>
+    <!--<script src="https://js.hcaptcha.com/1/api.js" async defer></script>-->
+    <script src="https://js.hcaptcha.com/1/api.js" async defer>
+      function onHCaptchaSuccess(token) {
+        console.log("hCaptcha token:", token);
+      }
+    </script>
   </body>
 </html>
