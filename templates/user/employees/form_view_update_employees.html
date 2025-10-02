@@ -203,11 +203,65 @@
                 <a class="btn btn-info" href="/form_view_update_employees/{{data_default[0]}}_Y"
                   style="width: 100px; border-radius: 10px;">Sửa</a>
                 {% endif %}
-
+                
                 {% if mode == "" %}
+
+                <!-- Captcha audio  -->
+                <div class="form-group" style="margin: 15px 0;">
+                  <label for="captcha"><b>Xác minh Captcha</b></label>
+                  <div class="captcha-box">
+                    <audio id="captcha-audio" controls>
+                      <source src="{{ url_for('audio_captcha') }}" type="audio/mpeg">
+                    </audio>
+                    <input id="captcha-input" type="text" name="captcha" placeholder="Nhập số bạn nghe được" required>
+                    <div style="display:flex; align-items:center; justify-content:space-between; width:100%; margin-top:8px;">
+                      <i class="verify-btn" onclick="verifyCaptcha()" title="Xác minh Captcha">Verify</i>
+                      <div>
+                          <i class="fas fa-redo fa-lg refresh-btn" onclick="refreshCaptcha()" title="Tải lại Captcha"></i>
+                      </div>
+                    </div>
+                    <div id="captcha-result" style="margin-top: 8px; font-weight: bold;"></div>
+                </div>
+                
+                <!-- Refresh captcha and verify captcha -->
+                <script>
+                  function refreshCaptcha() {
+                    const audio = document.getElementById("captcha-audio");
+                    audio.src = "{{ url_for('audio_captcha') }}?t=" + new Date().getTime(); // thêm timestamp để tránh cache
+                    audio.load();
+                    const resultDiv = document.getElementById("captcha-result");
+                    resultDiv.innerText = "";
+                    const captchaInput = document.getElementById("captcha-input");
+                    captchaInput.value = "";
+                  }
+
+                  function verifyCaptcha() {
+                    const captchaValue = document.getElementById("captcha-input").value;
+                    fetch("{{ url_for('verify_captcha') }}", {
+                      method: "POST",
+                      headers: {
+                        "Content-Type": "application/x-www-form-urlencoded"
+                      },
+                      body: "captcha=" + encodeURIComponent(captchaValue)
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                      const resultDiv = document.getElementById("captcha-result");
+                      if (data.success) {
+                        resultDiv.style.color = "green";
+                        resultDiv.innerText = data.message;
+                      } else {
+                        resultDiv.style.color = "red";
+                        resultDiv.innerText = data.message;
+                      }
+                    });
+                  }
+                </script>
+
+
                 <input type="submit" name="submit" id="reset" value="Lưu" class="btn btn-save"
                   style="width: 100px; border-radius: 10px;">
-
+                
                 <a class="btn btn-danger" href="/form_view_update_employees/{{my_user[4]}}_N"
                   style="width: 100px; border-radius: 10px;">Hủy</a>
                 {% endif %}

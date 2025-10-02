@@ -22,6 +22,12 @@ import re
 import requests
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 import secrets, string
+from flask import request, send_file, flash 
+import random, string, io
+from gtts import gTTS
+from pydub import AudioSegment
+from pydub.generators import WhiteNoise
+
 
 app = Flask(__name__)
 app.secret_key = 'la nam'
@@ -100,6 +106,44 @@ def make_captcha_image(text):
     img.save(buf, format="PNG")
     buf.seek(0)
     return buf
+
+# Sinh chuỗi số captcha cho audio
+def generate_captcha_text(length=5):
+    return ''.join(random.choices(string.digits, k=length))
+
+# Route sinh file audio captcha
+@app.route("/audio_captcha")
+def audio_captcha():
+    captcha_text = generate_captcha_text()
+    session['captcha'] = captcha_text  # lưu captcha vào session
+
+    text = ' '.join([i for i in captcha_text])
+    tts = gTTS(text, lang="en")
+    audio_io = io.BytesIO()
+    tts.write_to_fp(audio_io)
+    audio_io.seek(0)
+
+    audio = AudioSegment.from_file(audio_io, format="mp3")
+    noise = WhiteNoise().to_audio_segment(duration=len(audio))
+    audio = audio.overlay(noise - 25)
+
+    out_io = io.BytesIO()
+    audio.export(out_io, format="mp3")
+    out_io.seek(0)
+    return send_file(out_io, mimetype="audio/mpeg")
+
+# Kiem tra audio captcha
+@app.route("/verify_captcha", methods=["POST"])
+def verify_captcha():
+    user_input = request.form.get("captcha", "").strip()
+    if "captcha" not in session:
+        return jsonify({"success": False, "message": "Captcha chưa được khởi tạo"})
+    if user_input == session["captcha"]:
+        return jsonify({"success": True, "message": "Captcha chính xác"})
+    else:
+        return jsonify({"success": False, "message": "Captcha sai, vui lòng thử lại"})
+
+
 def login_required(func): # need for some router
     @functools.wraps(func)
     def secure_function(*args, **kwargs):
@@ -545,6 +589,13 @@ def form_add_data_employees():
 @app.route("/form_view_update_employees/<string:maNV>_<string:canEdit>", methods=['GET','POST'])
 def form_view_update_employees(maNV, canEdit):
     
+    if request.method == 'POST':
+        #kiểm tra audio captcha
+        user_input = request.form.get('captcha', '').strip()
+        if 'captcha' not in session or user_input != session['captcha']:
+            flash("Sai Captcha, vui lòng thử lại!", "danger")
+            return redirect(url_for("form_view_update_employees", maNV=maNV, canEdit=canEdit))
+
     if session['role_id'] != 1:
         if (session['username'][4] != maNV):
             abort(404)

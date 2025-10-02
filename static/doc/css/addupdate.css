@@ -18,3 +18,55 @@ body {
     outline: none;
     cursor: pointer;
 }
+
+/* Audio Captcha Custom */
+.captcha-box {
+  border: 1px solid #dcdcdc;
+  border-radius: 6px;
+  padding: 15px;
+  background-color: #f8f9fa;
+  width: 320px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 10px;
+  margin-bottom: 10px;
+}
+
+.captcha-box audio {
+  margin-bottom: 10px;
+  width: 100%;
+}
+
+.captcha-box input {
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 6px 10px;
+  width: 90%;
+  text-align: center;
+}
+
+.captcha-box .refresh-btn {
+  margin-top: 8px;
+  cursor: pointer;
+  color: #007bff;
+  font-size: 18px;
+}
+.captcha-box .refresh-btn:hover {
+  color: #0056b3;
+}
+
+.verify-btn {
+    background-color: #f6f6f6;
+    color: #080808; 
+    font-weight: bold;
+    padding: 6px 20px; 
+    min-width: 100px;
+    border: 1px solid #080808;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+    border-radius: 20px; 
+    font-size: 16px;
+    cursor: pointer; 
+    text-align: center;
+}
