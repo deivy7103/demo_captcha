@@ -1,4 +1,5 @@
 import hashlib
+import random
 from flask import Flask, render_template, request, redirect, url_for, session, abort
 from flask import Response, json, jsonify, send_file, render_template_string
 from flask_mysqldb import MySQL
@@ -41,6 +42,13 @@ app.config['SAVE_FOLDER_EXCEL'] = SAVE_FOLDER_EXCEL
 CAPTCHA_LEN = 5
 CAPTCHA_EXPIRE_SECS = 180
 mysql = MySQL(app)
+def generate_math_captcha():
+    """Sinh phép toán captcha mới và lưu vào session"""
+    num1 = random.randint(1, 9)
+    num2 = random.randint(1, 9)
+    session["captcha_result"] = num1 + num2
+    return f"{num1} + {num2} = ?"
+
 def generate_captcha_text(length=CAPTCHA_LEN):
     # Loại bỏ ký tự dễ nhầm: 0/O, 1/I/L
     alphabet = ''.join(ch for ch in (string.ascii_uppercase + string.digits)
@@ -217,7 +225,7 @@ def captcha_png():
     resp.headers["Expires"] = "0"
     return resp
 #thêm chức năng đang ký tài khoản cho người dùng thường nha (kh phân quyền)
-@app.route("/register", methods=['GET', 'POST'])
+@app.route("/register", methods=['GET','POST'])
 def register():
     if 'username' in session:
         return redirect(url_for("home"))
@@ -242,9 +250,47 @@ def register():
         'Trưởng Phòng': 2,
         'Nhân Viên': 3
     }
+    if request.method == "GET":
+        num1 = random.randint(1, 9)
+        num2 = random.randint(1, 9)
+        session["captcha_result"] = num1 + num2
+        return render_template(
+            'general/register.html',
+            congty=session.get('congty'),
+            nhanvien=nhanvien,
+            type_account=list(type_account.keys()),
+            captcha_question=f"{num1} + {num2} = ?"
+        )
 
     if request.method == 'POST':
         details = request.form
+        details = request.form
+        user_answer = details.get("captcha", "").strip()
+
+        # Debug in ra console
+        print("[DEBUG] Captcha nhập:", user_answer, "| Đúng:", session.get("captcha_result"))
+
+        try:
+            user_answer = int(user_answer)
+        except ValueError:
+            user_answer = None
+
+        if user_answer != session.get("captcha_result"):
+            # Sai captcha → render lại form với phép toán mới
+            num1 = random.randint(1, 9)
+            num2 = random.randint(1, 9)
+            session["captcha_result"] = num1 + num2
+            return render_template(
+                'general/register.html',
+                congty=session.get('congty'),
+                error="Mã xác thực không đúng!",
+                nhanvien=nhanvien,
+                type_account=list(type_account.keys()),
+                form=details,
+                captcha_question=f"{num1} + {num2} = ?"
+            )
+
+
         username = details.get('username', '').strip()
         password = details.get('password', '')
         confirm = details.get('confirm_password', '')
@@ -347,6 +393,7 @@ def register():
                            congty=session.get('congty'),
                            nhanvien=nhanvien,
                            type_account=list(type_account.keys()))
+
 
 @app.route("/home")
 def home():
